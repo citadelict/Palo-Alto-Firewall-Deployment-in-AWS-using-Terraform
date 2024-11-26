@@ -6,7 +6,7 @@ This guide provides a detailed walkthrough for deploying a Palo Alto Networks VM
 ## 🚀 Prerequisites
 
 ### 1. Required Tools
-- [ ] AWS Account
+- [✅️] AWS Account
 - [ ] Terraform (v1.5.0+)
 - [ ] AWS CLI
 - [ ] SSH Key Pair
