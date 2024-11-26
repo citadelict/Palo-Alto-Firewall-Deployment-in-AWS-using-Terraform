@@ -12,10 +12,6 @@ This guide provides a detailed walkthrough for deploying a Palo Alto Networks VM
 - [ ] SSH Key Pair
 
 
-## 🖼️ Architecture Diagram
-
-![Architecture Diagram Placeholder](.docs/architecture-diagram.png)
-
 ### Architectural Components
 - VPC with multiple subnets
 - Palo Alto VM-Series Firewall
