@@ -1,7 +1,6 @@
 resource "aws_vpc" "firewall_vpc" {
   cidr_block           = "10.0.0.0/16"
   enable_dns_hostnames = true
-  
   tags = {
     Name = "Palo Alto Firewall VPC"
   }
@@ -9,54 +8,83 @@ resource "aws_vpc" "firewall_vpc" {
 
 resource "aws_internet_gateway" "firewall_igw" {
   vpc_id = aws_vpc.firewall_vpc.id
-  
   tags = {
     Name = "Firewall VPC Internet Gateway"
   }
 }
 
-
+# Management Subnet (Private)
 resource "aws_subnet" "management_subnet" {
   vpc_id                  = aws_vpc.firewall_vpc.id
   cidr_block              = "10.0.1.0/24"
   availability_zone       = "us-west-1c"  
   map_public_ip_on_launch = true
-
   tags = {
-    Name = "Management Subnet"
+    Name = "Firewall Management Subnet"
   }
 }
 
-resource "aws_subnet" "data_subnet" {
+# Untrust/External Subnet (Public)
+resource "aws_subnet" "untrust_subnet" {
   vpc_id                  = aws_vpc.firewall_vpc.id
   cidr_block              = "10.0.2.0/24"
   availability_zone       = "us-west-1c" 
-
+  map_public_ip_on_launch = true
   tags = {
-    Name = "Data Subnet"
+    Name = "Untrust Subnet"
   }
 }
 
-# Route Table for Management Subnet
+# Trust/Internal Subnet (Private)
+resource "aws_subnet" "trust_subnet" {
+  vpc_id                  = aws_vpc.firewall_vpc.id
+  cidr_block              = "10.0.3.0/24"
+  availability_zone       = "us-west-1c" 
+  map_public_ip_on_launch = false
+  tags = {
+    Name = "Trust Subnet"
+  }
+}
+
+# Management Route Table (Restricted)
 resource "aws_route_table" "management_route_table" {
   vpc_id = aws_vpc.firewall_vpc.id
-
+  
   route {
-    cidr_block = "0.0.0.0/0"
+    cidr_block     = "0.0.0.0/0"
     gateway_id = aws_internet_gateway.firewall_igw.id
   }
-
+  
   tags = {
     Name = "Management Subnet Route Table"
   }
 }
 
-# Route Table for Data Subnet
-resource "aws_route_table" "data_route_table" {
+# Untrust Route Table (Public)
+resource "aws_route_table" "untrust_route_table" {
   vpc_id = aws_vpc.firewall_vpc.id
-
+  
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.firewall_igw.id
+  }
+  
   tags = {
-    Name = "Data Subnet Route Table"
+    Name = "Untrust Subnet Route Table"
+  }
+}
+
+# Trust Route Table (Private)
+resource "aws_route_table" "trust_route_table" {
+  vpc_id = aws_vpc.firewall_vpc.id
+  
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.firewall_igw.id
+  }
+  
+  tags = {
+    Name = "Trust Subnet Route Table"
   }
 }
 
@@ -66,39 +94,44 @@ resource "aws_route_table_association" "management_subnet_association" {
   route_table_id = aws_route_table.management_route_table.id
 }
 
-resource "aws_route_table_association" "data_subnet_association" {
-  subnet_id      = aws_subnet.data_subnet.id
-  route_table_id = aws_route_table.data_route_table.id
+resource "aws_route_table_association" "untrust_subnet_association" {
+  subnet_id      = aws_subnet.untrust_subnet.id
+  route_table_id = aws_route_table.untrust_route_table.id
 }
 
-# Network Interface for Management
+resource "aws_route_table_association" "trust_subnet_association" {
+  subnet_id      = aws_subnet.trust_subnet.id
+  route_table_id = aws_route_table.trust_route_table.id
+}
+
+
+# Network Interfaces for Palo Alto Firewall
 resource "aws_network_interface" "management_interface" {
-  subnet_id       = aws_subnet.management_subnet.id
-  private_ips     = ["10.0.1.10"]  # Static private IP in management subnet
+  subnet_id   = aws_subnet.management_subnet.id 
+  private_ips = ["10.0.1.10"]
   security_groups = [aws_security_group.firewall_management_sg.id]
-
+  
   tags = {
-    Name = "Palo Alto Management Interface"
+    Name = "Firewall Management Interface"
   }
 }
 
-# Network Interface for Data Plane
-resource "aws_network_interface" "data_interface" {
-  subnet_id   = aws_subnet.data_subnet.id
-  private_ips = ["10.0.2.10"]  # Static private IP in data subnet
-
+resource "aws_network_interface" "untrust_interface" {
+  subnet_id   = aws_subnet.untrust_subnet.id 
+  private_ips = ["10.0.2.10"]
+  security_groups = [aws_security_group.firewall_management_sg.id]
+  
   tags = {
-    Name = "Palo Alto Data Interface"
+    Name = "Firewall Untrust Interface"
   }
 }
 
-# Elastic IP for Management Interface
-resource "aws_eip" "management_eip" {
-  domain                    = "vpc"
-  depends_on = [aws_instance.palo_alto_firewall]
-  network_interface = aws_network_interface.management_interface.id
-
+resource "aws_network_interface" "trust_interface" {
+  subnet_id   = aws_subnet.trust_subnet.id 
+  private_ips = ["10.0.3.10"]
+  security_groups = [aws_security_group.firewall_management_sg.id]
+  
   tags = {
-    Name = "Management Interface Elastic IP"
+    Name = "Firewall Trust Interface"
   }
 }
